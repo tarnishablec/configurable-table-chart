@@ -1,0 +1,33 @@
+.draggable-area {
+  min-height: 120px;
+  background: white;
+  border-radius: 5px;
+  overflow: hidden;
+
+  .draggable-item:nth-last-child(1) {
+  }
+}
+
+.draggable-item {
+  height: 30px;
+  line-height: 30px;
+  padding: 0 1.2rem;
+  border: 1px solid rgba(0, 0, 0, 0.2);
+  cursor: default;
+  white-space: nowrap;
+
+  &.removable {
+    &:hover {
+      background: rgba(255, 0, 0, 0.2);
+    }
+  }
+
+  i.close-icon {
+    float: right;
+    cursor: pointer;
+  }
+
+  &:hover {
+    background: rgba(0, 0, 0, 0.1);
+  }
+}
