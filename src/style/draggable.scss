@@ -16,12 +16,6 @@
   cursor: default;
   white-space: nowrap;
 
-  &.removable {
-    &:hover {
-      background: rgba(255, 0, 0, 0.2);
-    }
-  }
-
   i.close-icon {
     float: right;
     cursor: pointer;
