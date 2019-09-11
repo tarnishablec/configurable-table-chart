@@ -1,29 +1,40 @@
 <template>
   <div class="configurable-dashboard">
     <div class="parameter-panel">
-      <draggable :list="parameters" :group="{name:'parameters',pull:'clone',put:false}" :sort="false"
-                 class="draggable-area">
-        <div v-for="(item,index) in parameters" :key="index" class="draggable-item">
-          {{item}}
-        </div>
+      <draggable
+          :list="parameters"
+          :group="{name:'parameters',pull:'clone',put:false}"
+          :sort="false"
+          class="draggable-area"
+      >
+        <div v-for="(item,index) in parameters" :key="index" class="draggable-item">{{item}}</div>
       </draggable>
     </div>
     <div class="config-panel">
-      <yard-draggable :list="yard" group="parameters"/>
-      <dimension-draggable :list="dimension" group="parameters"/>
+      <draggable
+          :list="drag0"
+          group="parameters"
+          class="draggable-area"
+          style="min-height: 30px"
+          @clone="onlyOne"
+      >
+        <div v-for="(item,index) in drag0" :key="index" class="draggable-item">{{item}}</div>
+      </draggable>
+      <yard-draggable :list="drag1" group="parameters"/>
+      <dimension-draggable :list="drag2" group="parameters"/>
     </div>
     <div class="chart-panel">
-      <v-chart :options="options" autoresize/>
+      <v-chart v-if="drag0.length >= 1" :options="options" autoresize/>
     </div>
-    <div class="choose-panel">
-
-    </div>
+    <div class="choose-panel"></div>
   </div>
 </template>
 
 <script>
   import yardDraggable from "./yardDraggable";
   import DimensionDraggable from "./dimensionDraggable";
+  import _ from "lodash";
+  import {sumByIndex} from '@/utils/dataUtils'
 
   export default {
     name: "configurableDashboard",
@@ -31,123 +42,130 @@
     props: {
       sourceData: {
         type: Array,
-        default: () => [],
+        default: () => []
       }
     },
     data() {
       return {
-        yard: [],
-        dimension: [],
-        legend: [],
+        drag0: [],
+        drag1: [],
+        drag2: [],
         chart: {}
-      }
+      };
     },
     computed: {
+      legend: {
+        get() {
+          return this.drag0[0];
+        }
+      },
       parameters() {
         let source = this.sourceData;
-        return ((source && source.length > 0) ? Object.getOwnPropertyNames(source[0]) : []).filter(item => {
-          return item !== '__ob__';
+        return (source && source.length > 0
+                ? Object.getOwnPropertyNames(source[0])
+                : []
+        ).filter(item => {
+          return item !== "__ob__";
         });
       },
       options() {
+        let fieldStore = this.sourceData.reduce((acc, cur) => {
+          [this.drag0, this.drag1].forEach(dr => {
+            dr.forEach(d => {
+              acc.set(d, _.uniq((acc.get(d) ? acc.get(d) : []).concat(cur[d])))
+            });
+          });
+          return acc;
+        }, new Map());
+        console.log(fieldStore);
+        let xA = this.drag0.reduce((acc, cur) => {
+          acc.push({
+            type: 'category',
+            data: fieldStore.get(cur),
+          });
+          return acc;
+        }, []);
+
+
+        console.log(xA);
+        let le = this.drag1.reduce((acc, cur) => acc.concat(fieldStore.get(cur)), []).flat();
+
+        console.log(le);
+        let dataWarehouse = this.sourceData.reduce((acc, cur) => {
+          this.drag0.forEach(d => {
+            acc.set(cur[d], (acc.get(cur[d]) ? acc.get(cur[d]) : []).concat(cur));
+          });
+          return acc;
+        }, new Map());
+        console.log(dataWarehouse);
+
+        let dataMarket = new Map();
+
+        dataWarehouse.forEach((v, k) => {
+          this.drag2.forEach(u => {
+            this.drag1.forEach(d => {
+              fieldStore.get(d).forEach(f => {
+                dataMarket.set(`${k},${d},${f},${u}`, sumByIndex(v, d, f, u));
+              })
+            });
+          })
+        });
+
+        console.log(dataMarket);
+
+        let se = [];
+
+        this.drag1.forEach(d => {
+          let stack = d;
+          fieldStore.get(d).forEach(f => {
+            se.push({
+              name: f,
+              type: 'bar',
+              stack: stack,
+              data: (() => {
+                let res = [];
+                xA.forEach(x => {
+                  x.data.forEach(xd=>{
+                    console.log(`${xd},${stack},${f},${this.drag2[0]}`);
+                    res.push(dataMarket.get(`${xd},${stack},${f},${this.drag2[0]}`))
+                  })
+                });
+                return res;
+              })()
+            })
+          });
+
+          return se;
+        });
+        console.log(se);
         return {
           tooltip: {
-            trigger: 'axis',
-            axisPointer: {            // 坐标轴指示器，坐标轴触发有效
-              type: 'shadow'        // 默认为直线，可选为：'line' | 'shadow'
+            trigger: "axis",
+            axisPointer: {
+              type: "shadow" // 默认为直线，可选为：'line' | 'shadow'
             }
           },
           legend: {
-            data: ['直接访问', '邮件营销', '联盟广告', '视频广告', '搜索引擎', '百度', '谷歌', '必应', '其他']
+            data: le,
           },
-          grid: {
-            left: '3%',
-            right: '4%',
-            bottom: '3%',
-            containLabel: true
-          },
-          xAxis: [
-            {
-              type: 'category',
-              data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-            }
-          ],
+          xAxis: xA,
           yAxis: [
             {
-              type: 'value'
+              type: 'value',
             }
           ],
-          series: [
-            {
-              name: '直接访问',
-              type: 'bar',
-              data: [320, 332, 301, 334, 390, 330, 320]
-            },
-            {
-              name: '邮件营销',
-              type: 'bar',
-              stack: '广告',
-              data: [120, 132, 101, 134, 90, 230, 210]
-            },
-            {
-              name: '联盟广告',
-              type: 'bar',
-              stack: '广告',
-              data: [220, 182, 191, 234, 290, 330, 310]
-            },
-            {
-              name: '视频广告',
-              type: 'bar',
-              stack: '广告',
-              data: [150, 232, 201, 154, 190, 330, 410]
-            },
-            {
-              name: '搜索引擎',
-              type: 'bar',
-              data: [862, 1018, 964, 1026, 1679, 1600, 1570],
-              markLine: {
-                lineStyle: {
-                  normal: {
-                    type: 'dashed'
-                  }
-                },
-                data: [
-                  [{type: 'min'}, {type: 'max'}]
-                ]
-              }
-            },
-            {
-              name: '百度',
-              type: 'bar',
-              barWidth: 5,
-              stack: '搜索引擎',
-              data: [620, 732, 701, 734, 1090, 1130, 1120]
-            },
-            {
-              name: '谷歌',
-              type: 'bar',
-              stack: '搜索引擎',
-              data: [120, 132, 101, 134, 290, 230, 220]
-            },
-            {
-              name: '必应',
-              type: 'bar',
-              stack: '搜索引擎',
-              data: [60, 72, 71, 74, 190, 130, 110]
-            },
-            {
-              name: '其他',
-              type: 'bar',
-              stack: '搜索引擎',
-              data: [62, 82, 91, 84, 109, 110, 120]
-            }
-          ]
-        }
+          series: se,
+        };
+      }
+    },
+    methods: {
+      onlyOne(evt) {
+        console.log(evt);
+
       }
     }
-  }
+  };
 </script>
 
 <style lang="scss" scoped>
-
 </style>
